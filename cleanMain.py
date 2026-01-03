@@ -2,156 +2,84 @@ import streamlit as st
 import pandas as pd
 import json
 import ast
+import re
 from io import BytesIO
 
-st.set_page_config(page_title="Step 1: Clean Main Sheet", layout="wide")
-
 def count_dialogues_in_prompt(prompt_val):
-    """
-    Parses the prompt JSON and counts distinct dialogue lines.
-    RULES:
-    1. Look inside ['cuts'] -> ['audio'] -> ['dialogue']
-    2. Count the number of keys (speakers) in the dialogue dictionary.
-    3. IGNORE ['thought'] and ['narration'].
-    """
     if pd.isna(prompt_val) or str(prompt_val).strip() in ["", "nan", "None"]:
         return 0
-
     try:
-        # Clean and parse the string to a dictionary
         clean_val = str(prompt_val).strip()
-        if clean_val.startswith('prompt'):
-            clean_val = clean_val[6:].strip()
-            
-        try:
-            data = ast.literal_eval(clean_val)
-        except (ValueError, SyntaxError):
-            data = json.loads(clean_val)
+        if clean_val.startswith('prompt'): clean_val = clean_val[6:].strip()
+        try: data = ast.literal_eval(clean_val)
+        except: data = json.loads(clean_val)
         
-        if not isinstance(data, dict):
-            return 0
+        if not isinstance(data, dict): return 0
 
         total_count = 0
-        cuts = data.get('cuts', [])
-        
-        for cut in cuts:
+        for cut in data.get('cuts', []):
             audio = cut.get('audio', {})
             if isinstance(audio, dict):
-                # We only access 'dialogue'. We IGNORE 'thought' and 'narration'.
-                dialogue_dict = audio.get('dialogue', {})
-                if isinstance(dialogue_dict, dict):
-                    # Count how many speaker keys exist (e.g., Accomplice + Morgan = 2)
-                    total_count += len(dialogue_dict)
-                    
+                total_count += len(audio.get('dialogue', {}))
         return total_count
+    except: return 0
 
-    except Exception:
-        # If parsing fails, return 0
-        return 0
+def render_main_cleaner():
+    st.header("1️⃣ Main Sheet Cleaner")
+    st.markdown("Generates Global IDs for panels in the Main Excel.")
 
-st.title("🧹 Step 1: Main Sheet Cleaner")
-st.markdown("Upload the **Main Excel Sheet**. Calculates Global Dialogue Ranges (Continuous) and filters the output.")
+    main_file = st.file_uploader("Upload Main Excel (Raw)", type=['xlsx'], key="main_uploader")
 
-uploaded_file = st.file_uploader("Upload Main Excel", type=['xlsx'])
-
-if uploaded_file:
-    # 1. Read Excel File (Load all sheets to get names)
-    try:
-        xls = pd.ExcelFile(uploaded_file)
-        sheet_names = xls.sheet_names
-        st.success(f"File uploaded! Found {len(sheet_names)} sheets (Episodes).")
-        
-        # --- UI: EPISODE SELECTION ---
-        st.markdown("---")
-        st.subheader("1. Select Episode")
-        selected_sheet = st.selectbox("Choose the Episode (Sheet) to process:", sheet_names)
-
-        if selected_sheet:
-            # Load specific sheet data
-            df = pd.read_excel(uploaded_file, sheet_name=selected_sheet)
+    if main_file:
+        try:
+            xls_main = pd.ExcelFile(main_file)
+            main_sheet_name = st.selectbox("Select Episode (Sheet)", xls_main.sheet_names, key="main_sheet_select")
             
-            # Ensure panel_number exists
-            if 'panel_number' not in df.columns:
-                st.error(f"❌ Column 'panel_number' not found in sheet '{selected_sheet}'")
-            else:
-                # Get Min/Max Panels
-                min_panel = int(df['panel_number'].min())
-                max_panel = int(df['panel_number'].max())
-                total_panels = len(df)
+            # Auto-detect episode number
+            try:
+                ep_num = int(re.search(r'\d+', main_sheet_name).group())
+                st.session_state.selected_episode_num = ep_num
+            except: pass
 
-                st.info(f"**{selected_sheet} Summary:** Found {total_panels} rows. Panels range from {min_panel} to {max_panel}.")
-
-                # --- UI: PANEL RANGE SELECTION ---
-                st.subheader("2. Select Panel Range")
-                col1, col2 = st.columns(2)
+            df_main = pd.read_excel(main_file, sheet_name=main_sheet_name)
+            
+            if 'panel_number' in df_main.columns:
+                min_p, max_p = int(df_main['panel_number'].min()), int(df_main['panel_number'].max())
                 
-                with col1:
-                    start_p = st.number_input("Start Panel Number", value=min_panel, min_value=min_panel, max_value=max_panel)
-                with col2:
-                    end_p = st.number_input("End Panel Number", value=max_panel, min_value=min_panel, max_value=max_panel)
+                c1, c2 = st.columns(2)
+                start_p = c1.number_input("Start Panel", value=min_p, min_value=min_p, max_value=max_p)
+                end_p = c2.number_input("End Panel", value=max_p, min_value=min_p, max_value=max_p)
 
-                # --- PROCESSING ---
-                st.markdown("---")
-                if st.button("🚀 Clean & Generate Task File"):
-                    if start_p > end_p:
-                        st.error("Error: Start Panel cannot be greater than End Panel.")
-                    else:
-                        with st.spinner("Calculating Global Ranges and Processing..."):
-                            
-                            # A. Calculate Counts & Ranges GLOBALLY (Before Filtering)
-                            # This ensures Panel 8 remembers the counts from Panels 1-7
-                            df['temp_count'] = df['prompt'].apply(count_dialogues_in_prompt)
-                            df['cumsum'] = df['temp_count'].cumsum()
-                            df['prev_cumsum'] = df['cumsum'].shift(1).fillna(0).astype(int)
-                            
-                            def format_range(row):
-                                count = row['temp_count']
-                                if count == 0:
-                                    return "0-0"
-                                start = row['prev_cumsum'] + 1
-                                end = row['cumsum']
-                                return f"{start}-{end}"
+                if st.button("Clean & Process Main Sheet", type="primary"):
+                    # 1. Global Calculation
+                    df_main['temp_count'] = df_main['prompt'].apply(count_dialogues_in_prompt)
+                    df_main['cumsum'] = df_main['temp_count'].cumsum()
+                    df_main['prev_cumsum'] = df_main['cumsum'].shift(1).fillna(0).astype(int)
+                    
+                    df_main['dialogue_range'] = df_main.apply(
+                        lambda r: "0-0" if r['temp_count'] == 0 else f"{r['prev_cumsum'] + 1}-{r['cumsum']}", axis=1
+                    )
 
-                            df['dialogue_range'] = df.apply(format_range, axis=1)
+                    # 2. Filter & Select Cols
+                    mask = (df_main['panel_number'] >= start_p) & (df_main['panel_number'] <= end_p)
+                    df_main_clean = df_main[mask].copy()
+                    
+                    cols = ['episode_number', 'panel_number', 'prompt', 'dialogue_range']
+                    final_cols = [c for c in cols if c in df_main_clean.columns]
+                    df_export_main = df_main_clean[final_cols]
 
-                            # B. NOW Filter by Range
-                            mask = (df['panel_number'] >= start_p) & (df['panel_number'] <= end_p)
-                            df_filtered = df[mask].copy()
+                    # 3. SAVE TO SESSION STATE
+                    st.session_state['clean_main_df'] = df_export_main
+                    st.success("✅ Main Sheet processed and stored in memory! You can now proceed to Step 3 (or download below).")
 
-                            if df_filtered.empty:
-                                st.warning("No rows found in this panel range.")
-                            else:
-                                # C. Filter Columns
-                                required_columns = ['episode_number', 'panel_number', 'prompt', 'dialogue_range']
-                                missing_cols = [col for col in required_columns if col not in df_filtered.columns]
-                                
-                                if missing_cols:
-                                    st.error(f"❌ Missing columns: {missing_cols}")
-                                else:
-                                    df_clean = df_filtered[required_columns].copy()
-
-                                    # D. Preview
-                                    st.subheader("Preview Result")
-                                    st.dataframe(df_clean.head(10))
-                                    
-                                    # Info Stats
-                                    range_start = df_clean.iloc[0]['dialogue_range'].split('-')[0]
-                                    range_end = df_clean.iloc[-1]['dialogue_range'].split('-')[-1]
-                                    st.success(f"✅ Processed Panels {start_p} to {end_p}. Global Dialogue Range: {range_start} to {range_end}")
-
-                                    # E. Download
-                                    output = BytesIO()
-                                    with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                                        df_clean.to_excel(writer, index=False)
-                                    
-                                    clean_filename = f"Cleaned_{selected_sheet}_Panels_{start_p}-{end_p}.xlsx"
-                                    
-                                    st.download_button(
-                                        label="📥 Download Cleaned Sheet",
-                                        data=output.getvalue(),
-                                        file_name=clean_filename,
-                                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                                    )
-
-    except Exception as e:
-        st.error(f"Error reading file: {e}")
+                    # 4. Download Option
+                    output_main = BytesIO()
+                    with pd.ExcelWriter(output_main, engine='openpyxl') as writer:
+                        df_export_main.to_excel(writer, index=False)
+                    
+                    st.download_button("📥 Download Cleaned Main Sheet", data=output_main.getvalue(),
+                                       file_name=f"Cleaned_Main_{main_sheet_name}_P{start_p}-{end_p}.xlsx")
+            else:
+                st.error("Column 'panel_number' missing.")
+        except Exception as e:
+            st.error(f"Error: {e}")

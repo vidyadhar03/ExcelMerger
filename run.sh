@@ -1,3 +1,3 @@
 #!/bin/bash
 source venv/bin/activate
-streamlit run cleanMain.py
+streamlit run app.py
