@@ -50,7 +50,7 @@ def count_dialogues_in_prompt(prompt_val):
         return 0
 
 st.title("🧹 Step 1: Main Sheet Cleaner")
-st.markdown("Upload the **Main Excel Sheet**. Select the Episode and Panel range to generate a clean task file.")
+st.markdown("Upload the **Main Excel Sheet**. Calculates Global Dialogue Ranges (Continuous) and filters the output.")
 
 uploaded_file = st.file_uploader("Upload Main Excel", type=['xlsx'])
 
@@ -96,33 +96,32 @@ if uploaded_file:
                     if start_p > end_p:
                         st.error("Error: Start Panel cannot be greater than End Panel.")
                     else:
-                        with st.spinner("Processing selected range..."):
+                        with st.spinner("Calculating Global Ranges and Processing..."):
                             
-                            # A. Filter Dataframe by Range
+                            # A. Calculate Counts & Ranges GLOBALLY (Before Filtering)
+                            # This ensures Panel 8 remembers the counts from Panels 1-7
+                            df['temp_count'] = df['prompt'].apply(count_dialogues_in_prompt)
+                            df['cumsum'] = df['temp_count'].cumsum()
+                            df['prev_cumsum'] = df['cumsum'].shift(1).fillna(0).astype(int)
+                            
+                            def format_range(row):
+                                count = row['temp_count']
+                                if count == 0:
+                                    return "0-0"
+                                start = row['prev_cumsum'] + 1
+                                end = row['cumsum']
+                                return f"{start}-{end}"
+
+                            df['dialogue_range'] = df.apply(format_range, axis=1)
+
+                            # B. NOW Filter by Range
                             mask = (df['panel_number'] >= start_p) & (df['panel_number'] <= end_p)
                             df_filtered = df[mask].copy()
 
                             if df_filtered.empty:
                                 st.warning("No rows found in this panel range.")
                             else:
-                                # B. Calculate counts (Only for filtered rows)
-                                df_filtered['temp_count'] = df_filtered['prompt'].apply(count_dialogues_in_prompt)
-
-                                # C. Generate Ranges (Cumulative Sum restarts for this batch)
-                                df_filtered['cumsum'] = df_filtered['temp_count'].cumsum()
-                                df_filtered['prev_cumsum'] = df_filtered['cumsum'].shift(1).fillna(0).astype(int)
-                                
-                                def format_range(row):
-                                    count = row['temp_count']
-                                    if count == 0:
-                                        return "0-0"
-                                    start = row['prev_cumsum'] + 1
-                                    end = row['cumsum']
-                                    return f"{start}-{end}"
-
-                                df_filtered['dialogue_range'] = df_filtered.apply(format_range, axis=1)
-
-                                # D. Filter Columns
+                                # C. Filter Columns
                                 required_columns = ['episode_number', 'panel_number', 'prompt', 'dialogue_range']
                                 missing_cols = [col for col in required_columns if col not in df_filtered.columns]
                                 
@@ -131,14 +130,16 @@ if uploaded_file:
                                 else:
                                     df_clean = df_filtered[required_columns].copy()
 
-                                    # E. Preview
+                                    # D. Preview
                                     st.subheader("Preview Result")
                                     st.dataframe(df_clean.head(10))
                                     
-                                    total_dialogues = df_filtered['temp_count'].sum()
-                                    st.success(f"✅ Processed Panels {start_p} to {end_p}. Total Dialogues: {total_dialogues}")
+                                    # Info Stats
+                                    range_start = df_clean.iloc[0]['dialogue_range'].split('-')[0]
+                                    range_end = df_clean.iloc[-1]['dialogue_range'].split('-')[-1]
+                                    st.success(f"✅ Processed Panels {start_p} to {end_p}. Global Dialogue Range: {range_start} to {range_end}")
 
-                                    # F. Download
+                                    # E. Download
                                     output = BytesIO()
                                     with pd.ExcelWriter(output, engine='openpyxl') as writer:
                                         df_clean.to_excel(writer, index=False)
