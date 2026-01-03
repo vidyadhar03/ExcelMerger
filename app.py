@@ -5,19 +5,35 @@ from merger import render_merger
 
 st.set_page_config(page_title="MotionX Automation Tool", layout="wide")
 
-if 'selected_episode_num' not in st.session_state:
-    st.session_state.selected_episode_num = None
+# 1. Initialize Session State for Navigation
+if 'current_step' not in st.session_state:
+    st.session_state['current_step'] = "1. Clean Main Sheet"
 
 st.title("🎬 MotionX Automation Dashboard")
 
-# Create Tabs for a cleaner UI
-tab1, tab2, tab3 = st.tabs(["1. Clean Main Sheet", "2. Clean Dialogue Sheet", "3. Merge & Validate"])
+# 2. Navigation Bar
+# IMPORTANT: 'key="current_step"' binds this widget directly to the session state.
+# - If you click the radio button, it updates the state.
+# - If code (like the 'Next' button) updates the state, this radio button updates visually.
+steps = ["1. Clean Main Sheet", "2. Clean Dialogue Sheet", "3. Merge & Validate"]
 
-with tab1:
+st.radio(
+    "Navigate to:", 
+    steps, 
+    horizontal=True, 
+    label_visibility="collapsed",
+    key="current_step"
+)
+
+st.divider()
+
+# 3. Render Active Step
+# We check the state variable to decide which module to load
+if st.session_state['current_step'] == "1. Clean Main Sheet":
     render_main_cleaner()
-
-with tab2:
+    
+elif st.session_state['current_step'] == "2. Clean Dialogue Sheet":
     render_dialogue_cleaner()
-
-with tab3:
+    
+elif st.session_state['current_step'] == "3. Merge & Validate":
     render_merger()
