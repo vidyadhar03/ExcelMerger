@@ -1,41 +1,17 @@
-# 📖 MotionX Excel Dialogue Merger
+# 🎬 MotionX Automation Dashboard
 
-A specialized internal tool built with **Python** and **Streamlit** to automate the merging of comic dialogues and SFX into a single production sheet.
-
-This tool intelligently categorizes text based on capitalization:
-
-* **All-Caps (e.g., "BAM BAM")**  Automatically mapped to the `sfx` key.
-* **Mixed-Case (e.g., "Wait WHAT")**  Automatically mapped to the `dialogues` key.
+An internal Python/Streamlit tool to automate comic script preparation for ElevenLabs. It synchronizes Excel data, updates JSON prompts, and extracts metadata for AI context.
 
 ---
 
-## 🚀 Quick Start Guide
+## ⚡ Quick Start
 
-Follow these steps to get the tool running on your local machine.
-
-### 1. Clone the Repository
-
-Open your terminal and clone this project:
-
+**1. Setup (First Run Only)**
 ```bash
-git clone <your-repository-url>
-cd MotionX-Excel-Merger
-
+chmod +x setup.sh && ./setup.sh
 ```
 
-### 2. Initial Setup (First time only)
-
-Run this command to grant permissions and install all necessary components (Python virtual environment and libraries):
-
-```bash
-chmod +x *.sh && ./setup.sh
-
-```
-
-### 3. Launch the Tool
-
-Run this command whenever you want to use the merger. It will automatically open the interface in your default web browser:
-
+**2. Launch App**
 ```bash
 ./run.sh
 
@@ -43,27 +19,31 @@ Run this command whenever you want to use the merger. It will automatically open
 
 ---
 
-## 🛠 How to Use the Merger
+## 🔄 Workflow (3-Step Wizard)
 
-1. **Upload Files:** Drag and drop your **Main Excel Sheet** and your **Dialogue Excel Sheet**.
-2. **Select Episode:** Choose the episode number you are working on from the dropdown.
-3. **Define Range:** Use the input boxes to set the **Start Panel** and **End Panel** range.
-4. **Process:** Click the "Merge and Generate" button.
-5. **Download:** Once the preview looks correct, click **📥 Download Merged Excel**.
+**Step 1: Clean Main Sheet**
+
+* Upload your **Main Excel**. Select Episode & Panel Range.
+* **Action:** Calculates global dialogue IDs and filters panels.
+
+**Step 2: Clean Dialogue Sheet**
+
+* Upload your **Dialogue Excel**. Select the source sheet (QC).
+* **Action:** Removes SFX rows (All-Caps) and assigns matching IDs.
+
+**Step 3: Merge & Validate**
+
+* Auto-loads data from previous steps.
+* **Action:** Validates ID counts, updates the `prompt` JSON with new text, and extracts metadata (`action`, `sfx`, `characters`).
+* *Download the Final Task File.*
 
 ---
 
-## 📂 Project Structure
+## ⚠️ Critical Logic
 
-* `app.py`: The core logic and Streamlit UI.
-* `setup.sh`: Automates the creation of the `venv` and library installation.
-* `run.sh`: Activates the environment and launches the app.
-* `requirements.txt`: List of Python dependencies (Pandas, Streamlit, Openpyxl).
-* `.gitignore`: Configured to prevent local `venv` and private `.xlsx` files from being uploaded.
+* **SFX Detection:** Any cell with **ALL UPPERCASE** text (e.g., "STOMP") is treated as SFX and **removed**.
+* **Prompt Update:** The tool surgically overwrites the old dialogue inside the Main Sheet's JSON with the clean text from the Dialogue Sheet.
 
----
+```
 
-## ⚠️ Important Notes
-
-* **Text Formatting:** The tool relies on **ALL CAPS** to identify Sound Effects (SFX). If a shouting line like "WHAT" should be dialogue, ensure it is written as "What" or "What!".
-* **Excel Columns:** Ensure your Dialogue sheet contains the columns: `episode_number`, `image_number`, `dialogue_number`, and `QC Dialogues`.
+```
