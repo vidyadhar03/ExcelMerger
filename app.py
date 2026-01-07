@@ -2,6 +2,8 @@ import streamlit as st
 from cleanMain import render_main_cleaner
 from cleanDialogue import render_dialogue_cleaner
 from merger import render_merger
+# Import the new Step 4 module
+from elevenLabsMerger import render_eleven_labs_merger 
 
 st.set_page_config(page_title="MotionX Automation Tool", layout="wide")
 
@@ -15,7 +17,12 @@ st.title("🎬 MotionX Automation Dashboard")
 # IMPORTANT: 'key="current_step"' binds this widget directly to the session state.
 # - If you click the radio button, it updates the state.
 # - If code (like the 'Next' button) updates the state, this radio button updates visually.
-steps = ["1. Clean Main Sheet", "2. Clean Dialogue Sheet", "3. Merge & Validate"]
+steps = [
+    "1. Clean Main Sheet", 
+    "2. Clean Dialogue Sheet", 
+    "3. Merge & Validate", 
+    "4. Dialogue Merger (ElevenLabs)"
+]
 
 st.radio(
     "Navigate to:", 
@@ -37,3 +44,6 @@ elif st.session_state['current_step'] == "2. Clean Dialogue Sheet":
     
 elif st.session_state['current_step'] == "3. Merge & Validate":
     render_merger()
+
+elif st.session_state['current_step'] == "4. Dialogue Merger (ElevenLabs)":
+    render_eleven_labs_merger()
