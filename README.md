@@ -44,6 +44,9 @@ chmod +x setup.sh && ./setup.sh
 * **SFX Detection:** Any cell with **ALL UPPERCASE** text (e.g., "STOMP") is treated as SFX and **removed**.
 * **Prompt Update:** The tool surgically overwrites the old dialogue inside the Main Sheet's JSON with the clean text from the Dialogue Sheet.
 
+
+python3 -m streamlit run app.py
+
 ```
 
 ```
