@@ -4,6 +4,7 @@ from cleanDialogue import render_dialogue_cleaner
 from merger import render_merger
 # Import the new Step 4 module
 from elevenLabsMerger import render_eleven_labs_merger 
+from videoDownloader import render_video_downloader
 
 st.set_page_config(page_title="MotionX Automation Tool", layout="wide")
 
@@ -19,6 +20,7 @@ st.title("🎬 MotionX Automation Dashboard")
 # - If code (like the 'Next' button) updates the state, this radio button updates visually.
 steps = [
     "1. Clean Main Sheet", 
+    "1.5. Video Downloader",
     "2. Clean Dialogue Sheet", 
     "3. Merge & Validate", 
     "4. Dialogue Merger (ElevenLabs)"
@@ -38,6 +40,9 @@ st.divider()
 # We check the state variable to decide which module to load
 if st.session_state['current_step'] == "1. Clean Main Sheet":
     render_main_cleaner()
+
+if st.session_state['current_step'] == "1.5. Video Downloader":
+    render_video_downloader()
     
 elif st.session_state['current_step'] == "2. Clean Dialogue Sheet":
     render_dialogue_cleaner()
